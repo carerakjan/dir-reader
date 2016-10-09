@@ -5,8 +5,8 @@ var path = require('path');
 var ignore = 'meta-data';
 var delimiter = '/';
 var metaData = {};
-var themes = [];
 var files = [];
+var dirs = [];
 var raw = [];
 
 function replaceSlash(file) {
@@ -27,15 +27,21 @@ function getJson(file) {
     return file;
 }
 
-function getTheme(file) {
+function reducePath(file) {
+    var parsed = file.split(delimiter);
+    var start = parsed.indexOf('autoscripts');
+    return parsed.slice(start < 0 ? 0 : start).join(delimiter);
+}
+
+function getDirs(file) {
     var parsed = file.split(delimiter);
     if(parsed.length === 2) return file;
 
     parsed = parsed.slice(1, -1);
-    var theme = parsed.join(delimiter);
+    var dir = parsed.join(delimiter);
 
-    if(!Boolean(themes.indexOf(theme) + 1)) {
-        themes.push(theme);
+    if(!Boolean(dirs.indexOf(dir) + 1)) {
+        dirs.push(dir);
     }
 
     return file;
@@ -48,6 +54,39 @@ function compact(result, file) {
     return result;
 }
 
-recursive('./autoscripts', function (err, fs) {
-    files = (raw = fs).map(removeExt).map(replaceSlash).map(getJson).reduce(compact, []).map(getTheme);
-});
+module.exports = function(options) {
+
+    var somePath = options['somePath'];
+    var success = options['success'];
+    var error = options['error'];
+
+    recursive(somePath, function (err, fs) {
+
+        try {
+
+            if(err) {
+                throw err;
+            }
+
+            files = (raw = fs)
+                .map(removeExt)
+                .map(replaceSlash)
+                .map(getJson)
+                .reduce(compact, [])
+                .map(reducePath)
+                .map(getDirs);
+
+            success && success({
+                raw: raw,
+                dirs: dirs,
+                files: files,
+                metaData: metaData
+            });
+
+        } catch (e) {
+            error && error(e);
+        }
+
+    });
+
+};
